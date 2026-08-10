@@ -16,7 +16,8 @@ def run_backtest():
     # 1. Load Data
     prices_df = fetch_price_data(force_reload=False)
     # Use Adjusted Close for accurate historical returns calculation
-    adj_prices = prices_df['Adj Close'].copy()
+    # yfinance group_by='ticker' makes Ticker level 0 and Attribute level 1
+    adj_prices = prices_df.xs('Adj Close', level=1, axis=1).copy()
     
     fundamentals_df = fetch_fundamentals_and_sectors(force_reload=False)
     
@@ -47,6 +48,7 @@ def run_backtest():
     # 4. State Tracking Variables
     portfolio_daily_values = pd.Series(dtype=float)
     current_weights = pd.Series(0.0, index=tickers)
+    holdings_history = {} # NEW: Track what we bought each month
     
     # Start the portfolio at 1.0 (or $1)
     current_portfolio_value = 1.0 
@@ -80,7 +82,7 @@ def run_backtest():
             print("Not enough history for covariance estimation.")
             continue
             
-        returns_slice = adj_prices.iloc[date_idx-252:date_idx].pct_change().dropna(how='all')
+        returns_slice = adj_prices.iloc[date_idx-252:date_idx].pct_change(fill_method=None).dropna(how='all')
         cov_matrix = estimate_covariance(returns_slice)
         
         # --- PHASE 3: Convex Optimization ---
@@ -94,6 +96,9 @@ def run_backtest():
             sector_matrix, 
             benchmark_sector_weights
         )
+        
+        # Store for the UI
+        holdings_history[rebalance_date] = target_weights.copy()
         
         # Calculate Turnover and apply Transaction Costs
         weight_diff = np.abs(target_weights - current_weights).sum()
@@ -112,7 +117,9 @@ def run_backtest():
             
         # Calculate daily cumulative return of the stocks over this specific month
         # Normalize prices to 1.0 at the start of the month
+        holding_prices = holding_prices.ffill()
         price_relatives = holding_prices / holding_prices.iloc[0]
+        price_relatives = price_relatives.fillna(1.0) # Prevent NaN * 0.0 = NaN propagation
         
         # Daily portfolio value = Target Weights dot-product with Daily Price Relatives
         daily_portfolio_returns = price_relatives.dot(target_weights)
@@ -135,11 +142,11 @@ def run_backtest():
     print("\nSimulation Complete. Calculating Performance Metrics...")
     
     # Calculate daily percentage returns from the wealth index
-    strategy_returns = portfolio_daily_values.pct_change().dropna()
+    strategy_returns = portfolio_daily_values.pct_change(fill_method=None).dropna()
     
     # Create Equal-Weight Benchmark
     # Just take the mean of all stock returns each day
-    all_returns = adj_prices.pct_change().dropna(how='all')
+    all_returns = adj_prices.pct_change(fill_method=None).dropna(how='all')
     benchmark_returns = all_returns.mean(axis=1)
     
     # Align benchmark dates to our strategy's active trading dates
@@ -152,6 +159,28 @@ def run_backtest():
     print("=========================================")
     print(report.round(4))
     print("=========================================\n")
+    
+    # --- PHASE 6: Save Results for UI ---
+    import os
+    import pickle
+    
+    output_dir = os.path.join(os.path.dirname(__file__), 'data', 'output')
+    os.makedirs(output_dir, exist_ok=True)
+    
+    output_file = os.path.join(output_dir, 'backtest_results.pkl')
+    
+    results = {
+        'portfolio_daily_values': portfolio_daily_values,
+        'strategy_returns': strategy_returns,
+        'benchmark_returns': benchmark_returns,
+        'holdings_history': holdings_history,
+        'report': report
+    }
+    
+    with open(output_file, 'wb') as f:
+        pickle.dump(results, f)
+        
+    print(f"Results saved to {output_file} for UI consumption.")
 
 if __name__ == "__main__":
     run_backtest()

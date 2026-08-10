@@ -35,3 +35,9 @@ MAX_POSITION_SIZE = 0.05       # 5% max weight per stock
 SECTOR_DEVIATION_CAP = 0.05    # ±5% sector weight vs benchmark
 MAX_TURNOVER = 0.40            # 40% two-way turnover per rebalance
 RISK_AVERSION = 1.0            # Penalty on variance in objective function
+
+# Machine Learning Parameters (Segment 4)
+ML_MIN_TRAIN_DAYS = 504        # Approx 2 years (252 * 2) minimum data needed to train
+ML_XGB_MAX_DEPTH = 3           # Shallow trees to prevent overfitting noisy financial data
+ML_XGB_LEARNING_RATE = 0.05
+ML_XGB_ESTIMATORS = 100
