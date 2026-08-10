@@ -329,7 +329,7 @@ strat_dd = report.loc['Max Drawdown', 'Sentry ML Strategy']
 strat_ir = report.loc['Information Ratio', 'Sentry ML Strategy'] if 'Information Ratio' in report.index else 0.60
 
 bench_cagr = report.loc['Annualized Return', 'Equal-Weight Benchmark']
-bench_vol = report.loc['Equal-Weight Benchmark', 'Annualized Volatility']
+bench_vol = report.loc['Annualized Volatility', 'Equal-Weight Benchmark']
 bench_sharpe = report.loc['Sharpe Ratio', 'Equal-Weight Benchmark']
 bench_dd = report.loc['Max Drawdown', 'Equal-Weight Benchmark']
 
