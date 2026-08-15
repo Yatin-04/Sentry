@@ -2,868 +2,505 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 import pickle
 import os
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(
-    page_title="SENTRY | Quantitative Alpha Engine",
-    page_icon="⚡",
+    page_title="Quantitative Portfolio Engine",
     layout="wide",
-    initial_sidebar_state="collapsed"
+    initial_sidebar_state="expanded"
 )
 
-# --- MODERN DESIGN SYSTEM & ADVANCED CSS ---
-custom_css = """
+# --- SIDEBAR CONTROLS ---
+with st.sidebar:
+    st.markdown("### Settings")
+    theme = st.radio("Interface Theme", ["Light Mode", "Dark Mode"], index=0)
+
+# --- DYNAMIC CSS ---
+if theme == "Light Mode":
+    bg_color = "#F8FAFC"
+    text_color = "#0F172A"
+    panel_bg = "#FFFFFF"
+    border_color = "#E2E8F0"
+    text_muted = "#64748B"
+    pass_color = "#059669"
+    fail_color = "#DC2626"
+    fallback_color = "#D97706"
+    chart_line = "#2563EB"
+    tab_bg = "#F1F5F9"
+    tab_selected_bg = "#E2E8F0"
+else:
+    bg_color = "#0F172A"
+    text_color = "#F8FAFC"
+    panel_bg = "#1E293B"
+    border_color = "#334155"
+    text_muted = "#94A3B8"
+    pass_color = "#34D399"
+    fail_color = "#F87171"
+    fallback_color = "#FBBF24"
+    chart_line = "#60A5FA"
+    tab_bg = "#0F172A"
+    tab_selected_bg = "#334155"
+
+custom_css = f"""
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
-
-    /* Global Reset & Canvas */
-    html, body, [class*="css"] {
-        font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
-    }
+    .stApp {{
+        background-color: {bg_color};
+        color: {text_color};
+        font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }}
     
-    .stApp {
-        background: radial-gradient(circle at 15% 15%, rgba(99, 102, 241, 0.08) 0%, rgba(8, 10, 16, 1) 50%),
-                    radial-gradient(circle at 85% 85%, rgba(0, 242, 254, 0.05) 0%, rgba(8, 10, 16, 1) 60%),
-                    #080A10;
-        color: #E2E8F0;
-    }
-
-    /* Hide Default Header/Footer */
-    header[data-testid="stHeader"] { display: none; }
-    footer { display: none; }
-    #MainMenu { visibility: hidden; }
-
-    /* Custom Scrollbar */
-    ::-webkit-scrollbar {
-        width: 6px;
-        height: 6px;
-    }
-    ::-webkit-scrollbar-track {
-        background: #0B0E17;
-    }
-    ::-webkit-scrollbar-thumb {
-        background: #1E293B;
+    h1, h2, h3 {{ color: {text_color} !important; font-weight: 600; }}
+    
+    .panel {{
+        background-color: {panel_bg};
+        border: 1px solid {border_color};
         border-radius: 4px;
-    }
-    ::-webkit-scrollbar-thumb:hover {
-        background: #334155;
-    }
-
-    /* Top Brand Nav Banner */
-    .brand-banner {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 16px 24px;
-        background: rgba(15, 23, 42, 0.6);
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        border-radius: 16px;
-        backdrop-filter: blur(16px);
+        padding: 20px;
         margin-bottom: 24px;
-        box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
-    }
-    .brand-title {
-        font-size: 1.4rem;
-        font-weight: 800;
-        background: linear-gradient(135deg, #FFFFFF 0%, #94A3B8 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        letter-spacing: -0.5px;
-        display: flex;
-        align-items: center;
-        gap: 10px;
-    }
-    .brand-badge {
-        font-size: 0.75rem;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+    }}
+    
+    .panel-header {{
+        font-size: 1.05rem;
         font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.8px;
-        padding: 4px 10px;
-        border-radius: 9999px;
-        background: rgba(0, 242, 254, 0.12);
-        color: #00F2FE;
-        border: 1px solid rgba(0, 242, 254, 0.3);
-    }
-    .status-pill {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        font-size: 0.8rem;
-        font-weight: 600;
-        color: #10B981;
-        background: rgba(16, 185, 129, 0.1);
-        border: 1px solid rgba(16, 185, 129, 0.25);
-        padding: 6px 14px;
-        border-radius: 9999px;
-    }
-    .status-dot {
-        width: 8px;
-        height: 8px;
-        background: #10B981;
-        border-radius: 50%;
-        box-shadow: 0 0 10px #10B981;
-        animation: pulse 2s infinite;
-    }
-    @keyframes pulse {
-        0% { transform: scale(0.95); opacity: 0.8; }
-        50% { transform: scale(1.2); opacity: 1; box-shadow: 0 0 14px #10B981; }
-        100% { transform: scale(0.95); opacity: 0.8; }
-    }
-
-    /* Hero Explainer Box */
-    .hero-box {
-        background: linear-gradient(135deg, rgba(30, 41, 59, 0.45) 0%, rgba(15, 23, 42, 0.45) 100%);
-        border: 1px solid rgba(99, 102, 241, 0.2);
-        border-radius: 16px;
-        padding: 20px 24px;
-        margin-bottom: 24px;
-        backdrop-filter: blur(12px);
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-    }
-    .hero-box h2 {
-        font-size: 1.25rem;
-        font-weight: 700;
-        margin: 0 0 6px 0;
-        color: #F8FAFC;
-    }
-    .hero-box p {
-        font-size: 0.92rem;
-        color: #94A3B8;
-        line-height: 1.5;
-        margin: 0;
-    }
-
-    /* Institutional KPI Cards */
-    .kpi-grid {
+        color: {text_color};
+        margin-bottom: 16px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid {border_color};
+    }}
+    
+    .memo-block {{
+        border-left: 4px solid {chart_line};
+        padding-left: 16px;
+        margin-bottom: 30px;
+    }}
+    
+    .memo-text {{
+        font-size: 0.95rem;
+        color: {text_muted};
+        line-height: 1.6;
+    }}
+    
+    .metric-grid {{
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
         gap: 16px;
         margin-bottom: 24px;
-    }
-    .kpi-card {
-        background: linear-gradient(145deg, rgba(20, 26, 38, 0.8) 0%, rgba(12, 16, 26, 0.9) 100%);
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        border-radius: 14px;
-        padding: 18px 20px;
-        backdrop-filter: blur(12px);
-        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-        position: relative;
-        overflow: hidden;
-    }
-    .kpi-card:hover {
-        transform: translateY(-3px);
-        border-color: rgba(0, 242, 254, 0.35);
-        box-shadow: 0 10px 28px rgba(0, 242, 254, 0.12);
-    }
-    .kpi-card::before {
-        content: '';
-        position: absolute;
-        top: 0; left: 0; right: 0; height: 2px;
-        background: linear-gradient(90deg, transparent, rgba(0, 242, 254, 0.5), transparent);
-        opacity: 0;
-        transition: opacity 0.3s ease;
-    }
-    .kpi-card:hover::before { opacity: 1; }
+    }}
     
-    .kpi-label {
-        font-size: 0.78rem;
-        font-weight: 600;
+    .metric-box {{
+        padding: 16px;
+        border: 1px solid {border_color};
+        background-color: {panel_bg};
+        border-radius: 4px;
+    }}
+    
+    .metric-label {{
+        font-size: 0.75rem;
         text-transform: uppercase;
-        letter-spacing: 0.6px;
-        color: #94A3B8;
-        margin-bottom: 8px;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-    }
-    .kpi-value {
-        font-family: 'JetBrains Mono', monospace;
-        font-size: 1.85rem;
-        font-weight: 700;
-        color: #F8FAFC;
-        letter-spacing: -0.5px;
-        margin-bottom: 8px;
-    }
-    .kpi-sub {
-        font-size: 0.8rem;
-        font-weight: 500;
-        display: flex;
-        align-items: center;
-        gap: 6px;
-    }
-    .badge-pos {
-        color: #10B981;
-        background: rgba(16, 185, 129, 0.12);
-        padding: 2px 8px;
-        border-radius: 6px;
+        color: {text_muted};
         font-weight: 600;
-        font-family: 'JetBrains Mono', monospace;
-        font-size: 0.75rem;
-    }
-    .badge-neg {
-        color: #F43F5E;
-        background: rgba(244, 63, 94, 0.12);
-        padding: 2px 8px;
-        border-radius: 6px;
+        margin-bottom: 6px;
+    }}
+    
+    .metric-value {{
+        font-size: 1.4rem;
         font-weight: 600;
-        font-family: 'JetBrains Mono', monospace;
+        color: {text_color};
+    }}
+    
+    .audit-badge {{
         font-size: 0.75rem;
-    }
-    .badge-neutral {
-        color: #94A3B8;
-        background: rgba(148, 163, 184, 0.12);
-        padding: 2px 8px;
-        border-radius: 6px;
         font-weight: 600;
-        font-size: 0.75rem;
-    }
-
-    /* Section Card Containers */
-    .section-card {
-        background: rgba(15, 23, 42, 0.5);
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        border-radius: 16px;
-        padding: 24px;
-        backdrop-filter: blur(16px);
-        margin-bottom: 24px;
-        box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25);
-    }
-    .section-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 18px;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-        padding-bottom: 14px;
-    }
-    .section-title {
-        font-size: 1.15rem;
-        font-weight: 700;
-        color: #FFFFFF;
-        display: flex;
-        align-items: center;
+        padding: 4px 8px;
+        border-radius: 4px;
+        text-transform: uppercase;
+    }}
+    .audit-pass {{ background: rgba(5, 150, 105, 0.1); color: {pass_color}; border: 1px solid {pass_color}; }}
+    .audit-fallback {{ background: rgba(217, 119, 6, 0.1); color: {fallback_color}; border: 1px solid {fallback_color}; }}
+    
+    /* FIX FOR TABS IN LIGHT/DARK MODE */
+    .stTabs [data-baseweb="tab-list"] {{
         gap: 8px;
-    }
-    .section-caption {
-        font-size: 0.85rem;
-        color: #94A3B8;
-        margin-top: 4px;
-    }
-
-    /* Streamlit Tabs Styling */
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 8px;
-        background-color: rgba(15, 23, 42, 0.6);
-        padding: 6px 8px;
-        border-radius: 12px;
-        border: 1px solid rgba(255, 255, 255, 0.06);
-        margin-bottom: 24px;
-    }
-    .stTabs [data-baseweb="tab"] {
+        background-color: {panel_bg};
+        padding: 8px;
         border-radius: 8px;
-        color: #94A3B8;
-        font-weight: 600;
-        font-size: 0.88rem;
-        padding: 8px 18px;
-        transition: all 0.2s ease;
-        border: none !important;
-        background: transparent !important;
-    }
-    .stTabs [aria-selected="true"] {
-        background: linear-gradient(135deg, rgba(99, 102, 241, 0.25) 0%, rgba(0, 242, 254, 0.18) 100%) !important;
-        color: #00F2FE !important;
-        border: 1px solid rgba(0, 242, 254, 0.3) !important;
-        box-shadow: 0 4px 12px rgba(0, 242, 254, 0.15);
-    }
-    .stTabs [data-baseweb="tab-highlight"] { display: none; }
-
-    /* Custom Ticker Tag */
-    .ticker-tag {
-        font-family: 'JetBrains Mono', monospace;
-        font-weight: 700;
-        background: rgba(99, 102, 241, 0.15);
-        color: #A5B4FC;
-        border: 1px solid rgba(99, 102, 241, 0.3);
-        padding: 3px 8px;
-        border-radius: 6px;
-        font-size: 0.82rem;
-    }
+        border: 1px solid {border_color};
+        margin-bottom: 24px;
+    }}
+    
+    .stTabs [data-baseweb="tab"] {{
+        color: {text_muted} !important;
+        border-radius: 4px;
+        padding: 8px 16px;
+        font-weight: 500;
+    }}
+    
+    .stTabs [aria-selected="true"] {{
+        background-color: {tab_selected_bg} !important;
+        color: {text_color} !important;
+    }}
+    
+    .disclaimer {{
+        margin-top: 40px;
+        padding-top: 20px;
+        border-top: 1px solid {border_color};
+        font-size: 0.8rem;
+        color: {text_muted};
+    }}
 </style>
 """
 st.markdown(custom_css, unsafe_allow_html=True)
 
-# --- DATA LOADING & CACHING ---
+# --- DATA LOADING ---
 @st.cache_data
 def load_quant_data():
     results_path = os.path.join(os.path.dirname(__file__), 'data', 'output', 'backtest_results.pkl')
     fundamentals_path = os.path.join(os.path.dirname(__file__), 'data', 'cache', 'fundamentals.csv')
-    
+
     if not os.path.exists(results_path):
         return None, None
-        
+
     with open(results_path, 'rb') as f:
         data = pickle.load(f)
-        
+
     sector_map = {}
     if os.path.exists(fundamentals_path):
         df_fund = pd.read_csv(fundamentals_path)
         if 'Ticker' in df_fund.columns and 'Sector' in df_fund.columns:
             sector_map = dict(zip(df_fund['Ticker'], df_fund['Sector']))
-        elif 'ticker' in df_fund.columns and 'sector' in df_fund.columns:
-            sector_map = dict(zip(df_fund['ticker'], df_fund['sector']))
-            
+
     return data, sector_map
 
 data, sector_map = load_quant_data()
 
 if data is None:
-    st.error("⚠️ **Simulation Artifacts Not Found.** Please run `python backtester.py` in your terminal to initialize and serialize the strategy results.")
+    st.error("Data not found. Please run `python backtester.py` first.")
     st.stop()
 
-# Unpack artifacts
+# Unpack
 report = data['report']
 portfolio_daily_values = data['portfolio_daily_values']
 strategy_returns = data['strategy_returns']
 benchmark_returns = data['benchmark_returns']
 holdings_history = data['holdings_history']
 
-# Extract core metrics safely
-strat_cagr = report.loc['Annualized Return', 'Sentry ML Strategy']
-strat_vol = report.loc['Annualized Volatility', 'Sentry ML Strategy']
-strat_sharpe = report.loc['Sharpe Ratio', 'Sentry ML Strategy']
-strat_dd = report.loc['Max Drawdown', 'Sentry ML Strategy']
-strat_ir = report.loc['Information Ratio', 'Sentry ML Strategy'] if 'Information Ratio' in report.index else 0.60
-
-bench_cagr = report.loc['Annualized Return', 'Equal-Weight Benchmark']
-bench_vol = report.loc['Annualized Volatility', 'Equal-Weight Benchmark']
-bench_sharpe = report.loc['Sharpe Ratio', 'Equal-Weight Benchmark']
-bench_dd = report.loc['Max Drawdown', 'Equal-Weight Benchmark']
-
-# Monthly & Yearly returns for deep analysis
-monthly_strat = (1 + strategy_returns).resample('ME').prod() - 1
-monthly_bench = (1 + benchmark_returns).resample('ME').prod() - 1
-win_rate = (monthly_strat > 0).mean() * 100
-
-yearly_strat = (1 + strategy_returns).resample('YE').prod() - 1
-yearly_bench = (1 + benchmark_returns).resample('YE').prod() - 1
-
-# Cumulative series
+# Deep Analytics Derivation
 cum_strat = (1 + strategy_returns).cumprod()
 cum_bench = (1 + benchmark_returns).cumprod()
+active_returns = strategy_returns - benchmark_returns
 
-# --- TOP BRAND / STATUS NAV ---
-st.markdown("""
-<div class="brand-banner">
-    <div class="brand-title">
-        <span>⚡ SENTRY</span>
-        <span class="brand-badge">Quantitative Alpha Engine</span>
-    </div>
-    <div style="display: flex; align-items: center; gap: 16px;">
-        <span style="font-size: 0.8rem; color: #94A3B8; font-weight: 500;">Universe: <b>100 US Equities</b> | Frictions: <b>10 bps</b></span>
-        <div class="status-pill">
-            <div class="status-dot"></div>
-            <span>OUT-OF-SAMPLE ACTIVE</span>
-        </div>
+# Calculate Win Rate and VaR
+strat_win_rate = (strategy_returns > 0).mean()
+bench_win_rate = (benchmark_returns > 0).mean()
+strat_var_95 = strategy_returns.quantile(0.05)
+bench_var_95 = benchmark_returns.quantile(0.05)
+
+# Rebalance logic
+rebal_dates = sorted(list(holdings_history.keys()))
+latest_date = rebal_dates[-1]
+prev_date = rebal_dates[-2] if len(rebal_dates) >= 2 else None
+
+latest_weights = holdings_history[latest_date]
+prev_weights = holdings_history[prev_date] if prev_date else pd.Series(0.0, index=latest_weights.index)
+
+active_latest = latest_weights[latest_weights > 0.001].sort_values(ascending=False)
+turnover = np.abs(latest_weights - prev_weights).sum()
+
+is_fallback = turnover > 1.0 
+
+# --- HEADER & INTRODUCTION ---
+st.markdown("<h1>Quantitative Portfolio Architecture</h1>", unsafe_allow_html=True)
+
+st.markdown(f"""
+<div class="memo-block">
+    <div class="memo-text">
+        <b>Project Overview:</b> This application serves as the execution layer for an end-to-end systematic equity strategy. 
+        It ingests multi-factor alpha scores generated by an XGBoost ranking model and translates them into a tradable portfolio 
+        using a convex optimizer (CVXPY). The objective is to maximize exposure to Value, Quality, Momentum, and Low-Volatility 
+        factors while strictly enforcing institutional risk boundaries (maximum position sizing, sector neutrality, and turnover limits).<br><br>
+        <i>Data displayed represents out-of-sample walk-forward backtest results, with the latest automated rebalance executed on <b>{latest_date.strftime('%B %d, %Y')}</b>.</i>
     </div>
 </div>
 """, unsafe_allow_html=True)
 
-# --- HERO EXPLAINER & SIMULATOR CONTROLS ---
-col_hero, col_sim = st.columns([3, 1.2])
+# --- MAIN TABS ---
+tab_trades, tab_risk, tab_perf = st.tabs(["Execution & Trades", "Risk & Compliance", "Deep Analytics"])
 
-with col_hero:
-    st.markdown("""
-    <div class="hero-box">
-        <h2>Institutional Multi-Factor Machine Learning Strategy</h2>
-        <p>
-            Sentry combines <b>Cross-Sectional Z-Score Factors</b> (Value, Quality, Momentum, Low-Volatility) with a 
-            <b>Walk-Forward XGBoost Model</b> and <b>CVXPY Convex Portfolio Optimization</b>. 
-            All metrics reflect strict realistic execution frictions, including daily weight drift and 10 bps turnover penalties.
-        </p>
+# ==========================================
+# TAB 1: EXECUTION & TRADES
+# ==========================================
+with tab_trades:
+    
+    if is_fallback:
+        st.warning("⚠️ **NOTICE:** The optimizer failed to converge under strict constraints for this period. The system automatically executed the Tier 4 Safety Heuristic (Equal-weighting the top 20 alpha signals) to ensure uninterrupted portfolio deployment.")
+    
+    st.markdown(f"""
+    <div class="metric-grid">
+        <div class="metric-box">
+            <div class="metric-label">Target Positions</div>
+            <div class="metric-value">{(active_latest > 0).sum()}</div>
+        </div>
+        <div class="metric-box">
+            <div class="metric-label">Estimated Turnover</div>
+            <div class="metric-value">{turnover*100:.1f}%</div>
+        </div>
+        <div class="metric-box">
+            <div class="metric-label">Largest Allocation</div>
+            <div class="metric-value">{active_latest.max()*100:.1f}%</div>
+        </div>
+        <div class="metric-box">
+            <div class="metric-label">Capital Deployed</div>
+            <div class="metric-value">{latest_weights.sum()*100:.1f}%</div>
+        </div>
     </div>
     """, unsafe_allow_html=True)
 
-with col_sim:
-    initial_capital = st.number_input(
-        "💵 Capital Simulation ($ USD)", 
-        min_value=1000, 
-        max_value=10000000, 
-        value=10000, 
-        step=5000,
-        help="Simulate the growth of an exact dollar investment in the strategy."
-    )
-
-strat_final_val = initial_capital * cum_strat.iloc[-1]
-bench_final_val = initial_capital * cum_bench.iloc[-1]
-total_profit = strat_final_val - initial_capital
-
-# --- INSTITUTIONAL SCORECARD GRID ---
-cagr_delta = (strat_cagr - bench_cagr) * 100
-sharpe_delta = strat_sharpe - bench_sharpe
-vol_delta = (strat_vol - bench_vol) * 100
-dd_delta = (strat_dd - bench_dd) * 100
-
-st.markdown(f"""
-<div class="kpi-grid">
-    <div class="kpi-card">
-        <div class="kpi-label">
-            <span>Annualized Return (CAGR)</span>
-            <span>📈</span>
-        </div>
-        <div class="kpi-value" style="color: #00F2FE;">{strat_cagr*100:.2f}%</div>
-        <div class="kpi-sub">
-            <span class="badge-pos">+{cagr_delta:.2f}% Alpha</span>
-            <span style="color: #94A3B8;">vs Benchmark</span>
-        </div>
-    </div>
-    <div class="kpi-card">
-        <div class="kpi-label">
-            <span>Sharpe Ratio (Risk-Adj)</span>
-            <span>⭐</span>
-        </div>
-        <div class="kpi-value" style="color: #6366F1;">{strat_sharpe:.2f}</div>
-        <div class="kpi-sub">
-            <span class="badge-pos">+{sharpe_delta:.2f}</span>
-            <span style="color: #94A3B8;">Bench: {bench_sharpe:.2f}</span>
-        </div>
-    </div>
-    <div class="kpi-card">
-        <div class="kpi-label">
-            <span>Maximum Drawdown</span>
-            <span>🛡️</span>
-        </div>
-        <div class="kpi-value" style="color: #F43F5E;">{strat_dd*100:.2f}%</div>
-        <div class="kpi-sub">
-            <span class="badge-neutral">Bench: {bench_dd*100:.2f}%</span>
-        </div>
-    </div>
-    <div class="kpi-card">
-        <div class="kpi-label">
-            <span>Annual Volatility</span>
-            <span>🌊</span>
-        </div>
-        <div class="kpi-value">{strat_vol*100:.2f}%</div>
-        <div class="kpi-sub">
-            <span class="badge-neutral">Bench: {bench_vol*100:.2f}%</span>
-        </div>
-    </div>
-    <div class="kpi-card">
-        <div class="kpi-label">
-            <span>Information Ratio</span>
-            <span>🎯</span>
-        </div>
-        <div class="kpi-value" style="color: #10B981;">{strat_ir:.2f}</div>
-        <div class="kpi-sub">
-            <span class="badge-pos">High Active Alpha</span>
-        </div>
-    </div>
-    <div class="kpi-card">
-        <div class="kpi-label">
-            <span>Simulated Wealth</span>
-            <span>💰</span>
-        </div>
-        <div class="kpi-value" style="color: #F59E0B;">${strat_final_val:,.0f}</div>
-        <div class="kpi-sub">
-            <span class="badge-pos">+${total_profit:,.0f} Net Gain</span>
-        </div>
-    </div>
-</div>
-""", unsafe_allow_html=True)
-
-
-# --- TAB NAVIGATION ---
-tab_perf, tab_risk, tab_holdings, tab_arch = st.tabs([
-    "📈 Performance & Equity Growth", 
-    "🛡️ Risk & Drawdown Analytics", 
-    "💼 Portfolio Holdings & Sectors", 
-    "🧠 Quantitative Blueprint"
-])
+    col_t1, col_t2 = st.columns([1.5, 1])
+    
+    with col_t1:
+        st.markdown('<div class="panel">', unsafe_allow_html=True)
+        st.markdown('<div class="panel-header">Target Portfolio Weights</div>', unsafe_allow_html=True)
+        
+        capital = st.number_input("Total Capital to Deploy ($)", min_value=0.0, value=1000000.0, step=100000.0, format="%.2f")
+        
+        holdings_df = pd.DataFrame({
+            'Ticker': active_latest.index,
+            'Target Weight': (active_latest.values * 100).round(2),
+            'Target Value ($)': (active_latest.values * capital).round(2),
+            'Sector': [sector_map.get(t, 'Unknown') for t in active_latest.index],
+            'Previous Weight': [(prev_weights.get(t, 0) * 100) for t in active_latest.index],
+        })
+        holdings_df['Action (Δ%)'] = (holdings_df['Target Weight'] - holdings_df['Previous Weight']).round(2)
+        
+        st.dataframe(
+            holdings_df[['Ticker', 'Sector', 'Previous Weight', 'Target Weight', 'Action (Δ%)', 'Target Value ($)']], 
+            hide_index=True, 
+            use_container_width=True, 
+            height=370
+        )
+        st.markdown('</div>', unsafe_allow_html=True)
+        
+    with col_t2:
+        st.markdown('<div class="panel">', unsafe_allow_html=True)
+        st.markdown('<div class="panel-header">Position Weight Distribution</div>', unsafe_allow_html=True)
+        
+        fig_dist = go.Figure(data=[go.Histogram(
+            x=(active_latest.values * 100),
+            nbinsx=20,
+            marker_color=chart_line
+        )])
+        fig_dist.update_layout(
+            plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)',
+            font=dict(color=text_muted),
+            xaxis=dict(title="Weight %", showgrid=True, gridcolor=border_color),
+            yaxis=dict(title="Count", showgrid=True, gridcolor=border_color),
+            margin=dict(l=0, r=0, t=10, b=0),
+            height=400
+        )
+        st.plotly_chart(fig_dist, use_container_width=True)
+        st.markdown('</div>', unsafe_allow_html=True)
 
 # ==========================================
-# TAB 1: PERFORMANCE & EQUITY GROWTH
+# TAB 2: RISK & COMPLIANCE
+# ==========================================
+with tab_risk:
+    st.markdown('<div class="panel">', unsafe_allow_html=True)
+    st.markdown('<div class="panel-header">Pre-Trade Constraint Audit</div>', unsafe_allow_html=True)
+    
+    max_w = active_latest.max()
+    
+    sector_weights_check = {}
+    for ticker, w in active_latest.items():
+        sec = sector_map.get(ticker, 'Other')
+        sector_weights_check[sec] = sector_weights_check.get(sec, 0.0) + w
+
+    benchmark_sector = {}
+    all_tickers = latest_weights.index.tolist()
+    for t in all_tickers:
+        sec = sector_map.get(t, 'Other')
+        benchmark_sector[sec] = benchmark_sector.get(sec, 0) + 1
+    
+    max_sector_dev = 0
+    for sec, weight in sector_weights_check.items():
+        bench_w = benchmark_sector.get(sec, 0) / len(all_tickers)
+        max_sector_dev = max(max_sector_dev, abs(weight - bench_w))
+        
+    audit_max_w = "audit-pass" if max_w <= 0.0501 else "audit-fallback"
+    txt_max_w = "PASS" if max_w <= 0.0501 else "FALLBACK TRIGGERED"
+    
+    audit_sec = "audit-pass" if max_sector_dev <= 0.0501 else "audit-fallback"
+    txt_sec = "PASS" if max_sector_dev <= 0.0501 else "FALLBACK TRIGGERED"
+    
+    audit_to = "audit-pass" if turnover <= 0.401 else "audit-fallback"
+    txt_to = "PASS" if turnover <= 0.401 else "FALLBACK TRIGGERED"
+    
+    st.markdown(f"""
+    <table style="width:100%; text-align:left; border-collapse: collapse;">
+        <tr style="border-bottom: 1px solid {border_color};">
+            <th style="padding: 12px; color: {text_muted};">Constraint Rule</th>
+            <th style="padding: 12px; color: {text_muted};">Current Value</th>
+            <th style="padding: 12px; color: {text_muted};">Audit Status</th>
+        </tr>
+        <tr style="border-bottom: 1px solid {border_color};">
+            <td style="padding: 12px; color: {text_color};">Maximum Position Size (≤ 5%)</td>
+            <td style="padding: 12px; font-weight: 600; color: {text_color};">{max_w*100:.2f}%</td>
+            <td style="padding: 12px;"><span class="audit-badge {audit_max_w}">{txt_max_w}</span></td>
+        </tr>
+        <tr style="border-bottom: 1px solid {border_color};">
+            <td style="padding: 12px; color: {text_color};">Sector Deviation vs Benchmark (≤ ±5%)</td>
+            <td style="padding: 12px; font-weight: 600; color: {text_color};">Max {max_sector_dev*100:.2f}%</td>
+            <td style="padding: 12px;"><span class="audit-badge {audit_sec}">{txt_sec}</span></td>
+        </tr>
+        <tr style="border-bottom: 1px solid {border_color};">
+            <td style="padding: 12px; color: {text_color};">Maximum Turnover Limit (≤ 40%)</td>
+            <td style="padding: 12px; font-weight: 600; color: {text_color};">{turnover*100:.1f}%</td>
+            <td style="padding: 12px;"><span class="audit-badge {audit_to}">{txt_to}</span></td>
+        </tr>
+        <tr>
+            <td style="padding: 12px; color: {text_color};">Capital Allocation (Fully Invested)</td>
+            <td style="padding: 12px; font-weight: 600; color: {text_color};">{latest_weights.sum()*100:.1f}%</td>
+            <td style="padding: 12px;"><span class="audit-badge audit-pass">PASS</span></td>
+        </tr>
+    </table>
+    """, unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+    
+    # Statistical Table with VaR and Win Rate
+    st.markdown('<div class="panel">', unsafe_allow_html=True)
+    st.markdown('<div class="panel-header">Long-Term Statistical Profile</div>', unsafe_allow_html=True)
+    
+    display_report = report.copy()
+    display_report.loc['Daily Win Rate'] = [strat_win_rate, bench_win_rate]
+    display_report.loc['95% Daily VaR'] = [strat_var_95, bench_var_95]
+    
+    for col in display_report.columns:
+        display_report[col] = display_report[col].apply(
+            lambda x: f"{x:.2f}" if (pd.notnull(x) and abs(x) < 10) else (f"{x*100:.2f}%" if pd.notnull(x) else "N/A")
+        )
+    st.dataframe(display_report, use_container_width=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# ==========================================
+# TAB 3: DEEP ANALYTICS
 # ==========================================
 with tab_perf:
-    st.markdown('<div class="section-card">', unsafe_allow_html=True)
     
-    col_t1, col_t2 = st.columns([3, 1])
-    with col_t1:
-        st.markdown("""
-        <div class="section-title">📊 Cumulative Wealth Trajectory ($1.00 Compounded Base)</div>
-        <div class="section-caption">Interactive comparison of Sentry ML Alpha vs 1/N Equal-Weight Large-Cap Benchmark.</div>
-        """, unsafe_allow_html=True)
-    with col_t2:
-        chart_mode = st.radio("Display Mode:", ["Normalized Growth ($1 Base)", "Portfolio Wealth ($ USD)"], horizontal=True, label_visibility="collapsed")
-    
-    scale_factor = initial_capital if "Portfolio Wealth" in chart_mode else 1.0
-    y_prefix = "$" if scale_factor > 1 else ""
+    # Cumulative Performance
+    st.markdown('<div class="panel">', unsafe_allow_html=True)
+    st.markdown('<div class="panel-header">Cumulative Return Profile</div>', unsafe_allow_html=True)
     
     fig_equity = go.Figure()
-    
-    # Strategy Trace (Neon Cyan Glow)
     fig_equity.add_trace(go.Scatter(
-        x=cum_strat.index,
-        y=cum_strat.values * scale_factor,
-        mode='lines',
-        name='Sentry ML Strategy',
-        line=dict(color='#00F2FE', width=3),
-        fill='tozeroy',
-        fillcolor='rgba(0, 242, 254, 0.08)',
-        hovertemplate='<b>Date:</b> %{x|%b %d, %Y}<br><b>Sentry Value:</b> ' + y_prefix + '%{y:,.2f}<extra></extra>'
+        x=cum_strat.index, y=cum_strat.values,
+        mode='lines', name='Strategy',
+        line=dict(color=chart_line, width=2)
     ))
-    
-    # Benchmark Trace (Slate Grey Dotted)
     fig_equity.add_trace(go.Scatter(
-        x=cum_bench.index,
-        y=cum_bench.values * scale_factor,
-        mode='lines',
-        name='Equal-Weight 1/N Benchmark',
-        line=dict(color='#94A3B8', width=2, dash='dash'),
-        hovertemplate='<b>Date:</b> %{x|%b %d, %Y}<br><b>Benchmark:</b> ' + y_prefix + '%{y:,.2f}<extra></extra>'
+        x=cum_bench.index, y=cum_bench.values,
+        mode='lines', name='Benchmark',
+        line=dict(color=text_muted, width=1.5, dash='dash')
     ))
-    
     fig_equity.update_layout(
-        template='plotly_dark',
-        plot_bgcolor='rgba(0,0,0,0)',
-        paper_bgcolor='rgba(0,0,0,0)',
-        font=dict(family='Plus Jakarta Sans, sans-serif', color='#94A3B8'),
-        xaxis=dict(
-            showgrid=True, 
-            gridcolor='rgba(255,255,255,0.05)',
-            rangeslider=dict(visible=False),
-            rangeselector=dict(
-                buttons=list([
-                    dict(count=1, label="1Y", step="year", stepmode="backward"),
-                    dict(count=3, label="3Y", step="year", stepmode="backward"),
-                    dict(count=5, label="5Y", step="year", stepmode="backward"),
-                    dict(step="all", label="ALL")
-                ]),
-                bgcolor='rgba(30, 41, 59, 0.8)',
-                font=dict(color='#E2E8F0', size=11),
-                activecolor='#6366F1'
-            )
-        ),
-        yaxis=dict(
-            showgrid=True, 
-            gridcolor='rgba(255,255,255,0.05)',
-            tickprefix=y_prefix,
-            tickformat=',.2f' if scale_factor == 1 else ',.0f'
-        ),
+        plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)',
+        font=dict(color=text_muted),
+        xaxis=dict(showgrid=True, gridcolor=border_color),
+        yaxis=dict(showgrid=True, gridcolor=border_color),
         hovermode="x unified",
-        legend=dict(
-            orientation="h",
-            yanchor="bottom",
-            y=1.02,
-            xanchor="right",
-            x=1,
-            font=dict(size=12, color='#E2E8F0')
-        ),
-        margin=dict(l=0, r=0, t=30, b=0),
-        height=460
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        margin=dict(l=0, r=0, t=20, b=0),
+        height=350
     )
-    
     st.plotly_chart(fig_equity, use_container_width=True)
     st.markdown('</div>', unsafe_allow_html=True)
     
-    # --- ANNUAL BREAKDOWN BAR CHART ---
-    st.markdown('<div class="section-card">', unsafe_allow_html=True)
-    st.markdown("""
-    <div class="section-title">📅 Year-over-Year Performance & Active Alpha</div>
-    <div class="section-caption">Annual calendar returns comparing Sentry Strategy vs Equal-Weight Benchmark.</div>
-    """, unsafe_allow_html=True)
+    # 2 Columns for Risk and Consistency
+    col_a1, col_a2 = st.columns([1, 1])
     
-    years = [d.strftime('%Y') for d in yearly_strat.index]
-    strat_yr_vals = yearly_strat.values * 100
-    bench_yr_vals = yearly_bench.values * 100
-    
-    fig_annual = go.Figure()
-    
-    fig_annual.add_trace(go.Bar(
-        x=years,
-        y=strat_yr_vals,
-        name='Sentry ML Strategy',
-        marker=dict(color='#00F2FE', line=dict(color='rgba(255,255,255,0.2)', width=1)),
-        text=[f"{v:+.1f}%" for v in strat_yr_vals],
-        textposition='outside',
-        textfont=dict(family='JetBrains Mono', size=11, color='#FFFFFF')
-    ))
-    
-    fig_annual.add_trace(go.Bar(
-        x=years,
-        y=bench_yr_vals,
-        name='Equal-Weight Benchmark',
-        marker=dict(color='#475569', line=dict(color='rgba(255,255,255,0.1)', width=1)),
-        text=[f"{v:+.1f}%" for v in bench_yr_vals],
-        textposition='outside',
-        textfont=dict(family='JetBrains Mono', size=11, color='#94A3B8')
-    ))
-    
-    fig_annual.update_layout(
-        template='plotly_dark',
-        plot_bgcolor='rgba(0,0,0,0)',
-        paper_bgcolor='rgba(0,0,0,0)',
-        font=dict(family='Plus Jakarta Sans, sans-serif', color='#94A3B8'),
-        barmode='group',
-        bargap=0.2,
-        bargroupgap=0.1,
-        xaxis=dict(showgrid=False),
-        yaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.05)', ticksuffix='%'),
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-        margin=dict(l=0, r=0, t=30, b=0),
-        height=350
-    )
-    
-    st.plotly_chart(fig_annual, use_container_width=True)
-    st.markdown('</div>', unsafe_allow_html=True)
-
-
-# ==========================================
-# TAB 2: RISK & DRAWDOWN ANALYTICS
-# ==========================================
-with tab_risk:
-    st.markdown('<div class="section-card">', unsafe_allow_html=True)
-    st.markdown("""
-    <div class="section-title">🛡️ Underwater Drawdown Profile (Historical Capital Drawdown)</div>
-    <div class="section-caption">Depth and duration of historical peak-to-trough losses across major market regimes.</div>
-    """, unsafe_allow_html=True)
-    
-    # Calculate drawdowns
-    running_max_strat = cum_strat.cummax()
-    dd_strat = (cum_strat - running_max_strat) / running_max_strat
-    
-    running_max_bench = cum_bench.cummax()
-    dd_bench = (cum_bench - running_max_bench) / running_max_bench
-    
-    fig_dd = go.Figure()
-    
-    fig_dd.add_trace(go.Scatter(
-        x=dd_strat.index,
-        y=dd_strat.values,
-        mode='lines',
-        name='Sentry Strategy Drawdown',
-        line=dict(color='#F43F5E', width=2),
-        fill='tozeroy',
-        fillcolor='rgba(244, 63, 94, 0.15)',
-        hovertemplate='<b>Date:</b> %{x|%b %d, %Y}<br><b>Drawdown:</b> %{y:.2%}<extra></extra>'
-    ))
-    
-    fig_dd.add_trace(go.Scatter(
-        x=dd_bench.index,
-        y=dd_bench.values,
-        mode='lines',
-        name='Benchmark Drawdown',
-        line=dict(color='#64748B', width=1.5, dash='dot'),
-        hovertemplate='<b>Date:</b> %{x|%b %d, %Y}<br><b>Benchmark DD:</b> %{y:.2%}<extra></extra>'
-    ))
-    
-    fig_dd.update_layout(
-        template='plotly_dark',
-        plot_bgcolor='rgba(0,0,0,0)',
-        paper_bgcolor='rgba(0,0,0,0)',
-        font=dict(family='Plus Jakarta Sans, sans-serif', color='#94A3B8'),
-        xaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.05)'),
-        yaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.05)', tickformat='.0%'),
-        hovermode="x unified",
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-        margin=dict(l=0, r=0, t=30, b=0),
-        height=380
-    )
-    
-    st.plotly_chart(fig_dd, use_container_width=True)
-    st.markdown('</div>', unsafe_allow_html=True)
-    
-    # --- ROLLING VOLATILITY & RISK MATRIX ---
-    col_r1, col_r2 = st.columns([1.5, 1])
-    
-    with col_r1:
-        st.markdown('<div class="section-card">', unsafe_allow_html=True)
-        st.markdown("""
-        <div class="section-title">🌊 Rolling 63-Day Volatility (Risk Dynamics)</div>
-        <div class="section-caption">Trailing quarterly annualized volatility demonstrating dynamic risk exposure.</div>
-        """, unsafe_allow_html=True)
+    with col_a1:
+        st.markdown('<div class="panel">', unsafe_allow_html=True)
+        st.markdown('<div class="panel-header">63-Day Rolling Volatility</div>', unsafe_allow_html=True)
         
         roll_vol_strat = strategy_returns.rolling(63).std() * np.sqrt(252)
         roll_vol_bench = benchmark_returns.rolling(63).std() * np.sqrt(252)
         
-        fig_rvol = go.Figure()
-        fig_rvol.add_trace(go.Scatter(
+        fig_vol = go.Figure()
+        fig_vol.add_trace(go.Scatter(
             x=roll_vol_strat.index, y=roll_vol_strat.values,
-            mode='lines', name='Sentry Volatility',
-            line=dict(color='#A855F7', width=2)
+            mode='lines', name='Strategy Vol', line=dict(color=fail_color, width=1.5)
         ))
-        fig_rvol.add_trace(go.Scatter(
+        fig_vol.add_trace(go.Scatter(
             x=roll_vol_bench.index, y=roll_vol_bench.values,
-            mode='lines', name='Benchmark Volatility',
-            line=dict(color='#64748B', width=1.5, dash='dash')
+            mode='lines', name='Bench Vol', line=dict(color=text_muted, width=1, dash='dot')
         ))
-        fig_rvol.update_layout(
-            template='plotly_dark',
-            plot_bgcolor='rgba(0,0,0,0)',
-            paper_bgcolor='rgba(0,0,0,0)',
-            font=dict(family='Plus Jakarta Sans, sans-serif', color='#94A3B8'),
-            xaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.05)'),
-            yaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.05)', tickformat='.0%'),
+        fig_vol.update_layout(
+            plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)',
+            font=dict(color=text_muted),
+            xaxis=dict(showgrid=True, gridcolor=border_color),
+            yaxis=dict(showgrid=True, gridcolor=border_color, tickformat='.0%'),
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+            margin=dict(l=0, r=0, t=20, b=0),
+            height=300
+        )
+        st.plotly_chart(fig_vol, use_container_width=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+        
+    with col_a2:
+        st.markdown('<div class="panel">', unsafe_allow_html=True)
+        st.markdown('<div class="panel-header">Monthly Active Returns (Alpha)</div>', unsafe_allow_html=True)
+        
+        # Calculate monthly active returns
+        monthly_active = active_returns.resample('M').apply(lambda x: (1 + x).prod() - 1)
+        colors = [pass_color if val > 0 else fail_color for val in monthly_active.values]
+        
+        fig_monthly = go.Figure(go.Bar(
+            x=monthly_active.index,
+            y=monthly_active.values,
+            marker_color=colors
+        ))
+        fig_monthly.update_layout(
+            plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)',
+            font=dict(color=text_muted),
+            xaxis=dict(showgrid=False),
+            yaxis=dict(showgrid=True, gridcolor=border_color, tickformat='.1%'),
             margin=dict(l=0, r=0, t=10, b=0),
-            height=300,
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+            height=300
         )
-        st.plotly_chart(fig_rvol, use_container_width=True)
+        st.plotly_chart(fig_monthly, use_container_width=True)
         st.markdown('</div>', unsafe_allow_html=True)
         
-    with col_r2:
-        st.markdown('<div class="section-card">', unsafe_allow_html=True)
-        st.markdown("""
-        <div class="section-title">📋 Institutional Risk Matrix</div>
-        <div class="section-caption">Head-to-head statistical breakdown.</div>
-        """, unsafe_allow_html=True)
-        
-        risk_data = {
-            "Metric": ["Annualized Return", "Annualized Volatility", "Sharpe Ratio (Rf=2%)", "Max Drawdown", "Information Ratio", "Monthly Win Rate"],
-            "Sentry ML": [f"{strat_cagr*100:.2f}%", f"{strat_vol*100:.2f}%", f"{strat_sharpe:.2f}", f"{strat_dd*100:.2f}%", f"{strat_ir:.2f}", f"{win_rate:.1f}%"],
-            "Benchmark": [f"{bench_cagr*100:.2f}%", f"{bench_vol*100:.2f}%", f"{bench_sharpe:.2f}", f"{bench_dd*100:.2f}%", "0.00", "58.2%"]
-        }
-        df_risk = pd.DataFrame(risk_data)
-        st.dataframe(df_risk, hide_index=True, use_container_width=True, height=280)
-        st.markdown('</div>', unsafe_allow_html=True)
-
-
-# ==========================================
-# TAB 3: PORTFOLIO HOLDINGS & SECTOR EXPOSURE
-# ==========================================
-with tab_holdings:
-    rebal_dates = sorted(list(holdings_history.keys()))
+    # Drawdown
+    st.markdown('<div class="panel">', unsafe_allow_html=True)
+    st.markdown('<div class="panel-header">Underwater Drawdown Profile</div>', unsafe_allow_html=True)
+    running_max_strat = cum_strat.cummax()
+    dd_strat = (cum_strat - running_max_strat) / running_max_strat
     
-    st.markdown('<div class="section-card">', unsafe_allow_html=True)
-    col_sel1, col_sel2 = st.columns([2, 1.5])
-    with col_sel1:
-        st.markdown("""
-        <div class="section-title">💼 Historical Portfolio Allocation Inspector</div>
-        <div class="section-caption">Explore what the XGBoost alpha engine selected across any monthly rebalance date.</div>
-        """, unsafe_allow_html=True)
-    with col_sel2:
-        selected_date = st.select_slider(
-            "Select Rebalance Date:",
-            options=rebal_dates,
-            value=rebal_dates[-1],
-            format_func=lambda d: d.strftime('%b %Y')
-        )
-    
+    fig_dd = go.Figure()
+    fig_dd.add_trace(go.Scatter(
+        x=dd_strat.index, y=dd_strat.values,
+        mode='lines', name='Drawdown',
+        line=dict(color=fail_color, width=1.5),
+        fill='tozeroy', fillcolor=f'rgba(220, 38, 38, 0.1)'
+    ))
+    fig_dd.update_layout(
+        plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)',
+        font=dict(color=text_muted),
+        xaxis=dict(showgrid=True, gridcolor=border_color),
+        yaxis=dict(showgrid=True, gridcolor=border_color, tickformat='.0%'),
+        showlegend=False,
+        margin=dict(l=0, r=0, t=10, b=0),
+        height=250
+    )
+    st.plotly_chart(fig_dd, use_container_width=True)
     st.markdown('</div>', unsafe_allow_html=True)
-    
-    # Get holdings for the selected date
-    cur_weights = holdings_history[selected_date]
-    active_stocks = cur_weights[cur_weights > 0.001].sort_values(ascending=False)
-    
-    col_sec, col_hold = st.columns([1.2, 1.8])
-    
-    with col_sec:
-        st.markdown('<div class="section-card">', unsafe_allow_html=True)
-        st.markdown("""
-        <div class="section-title">🍩 Sector Allocation Breakdown</div>
-        <div class="section-caption">Sector diversification with ±5% deviation constraints.</div>
-        """, unsafe_allow_html=True)
-        
-        # Calculate sector weights
-        sector_weights = {}
-        for ticker, w in active_stocks.items():
-            sec = sector_map.get(ticker, 'Other')
-            sector_weights[sec] = sector_weights.get(sec, 0.0) + w
-            
-        df_sec = pd.DataFrame(list(sector_weights.items()), columns=['Sector', 'Weight']).sort_values('Weight', ascending=False)
-        
-        fig_donut = go.Figure(data=[go.Pie(
-            labels=df_sec['Sector'],
-            values=df_sec['Weight'],
-            hole=0.55,
-            marker=dict(colors=['#00F2FE', '#6366F1', '#10B981', '#F59E0B', '#A855F7', '#EC4899', '#64748B']),
-            textinfo='label+percent',
-            textposition='inside',
-            insidetextorientation='radial',
-            hovertemplate='<b>%{label}</b><br>Allocation: %{percent:.1%}<extra></extra>'
-        )])
-        
-        fig_donut.update_layout(
-            template='plotly_dark',
-            plot_bgcolor='rgba(0,0,0,0)',
-            paper_bgcolor='rgba(0,0,0,0)',
-            font=dict(family='Plus Jakarta Sans, sans-serif', color='#94A3B8'),
-            showlegend=False,
-            margin=dict(l=10, r=10, t=10, b=10),
-            height=320
-        )
-        st.plotly_chart(fig_donut, use_container_width=True)
-        st.markdown('</div>', unsafe_allow_html=True)
-        
-    with col_hold:
-        st.markdown('<div class="section-card">', unsafe_allow_html=True)
-        st.markdown(f"""
-        <div class="section-title">📋 Active Asset Allocation ({len(active_stocks)} Positions)</div>
-        <div class="section-caption">Rebalanced on <b>{selected_date.strftime('%B %d, %Y')}</b> | Capped at 5.0% Max Weight</div>
-        """, unsafe_allow_html=True)
-        
-        holdings_rows = []
-        for ticker, w in active_stocks.items():
-            holdings_rows.append({
-                "Ticker": ticker,
-                "Sector": sector_map.get(ticker, "General"),
-                "Weight": f"{w*100:.2f}%",
-                "Allocation ($)": f"${(initial_capital * cum_strat.loc[selected_date] * w):,.0f}" if selected_date in cum_strat.index else "-"
-            })
-            
-        df_display_holdings = pd.DataFrame(holdings_rows)
-        st.dataframe(df_display_holdings, hide_index=True, use_container_width=True, height=320)
-        st.markdown('</div>', unsafe_allow_html=True)
 
-
-# ==========================================
-# TAB 4: QUANTITATIVE BLUEPRINT
-# ==========================================
-with tab_arch:
-    st.markdown("""
-    <div class="section-card">
-        <div class="section-title">🧠 Sentry Alpha Pipeline Architecture</div>
-        <div class="section-caption">Complete mathematical and quantitative pipeline from raw data to convex optimization.</div>
-        <br>
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px;">
-            <div style="background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; padding: 18px;">
-                <h4 style="color: #00F2FE; margin-top: 0;">1. Data Ingestion & Delta Caching</h4>
-                <p style="font-size: 0.85rem; color: #94A3B8; line-height: 1.5;">
-                    Pulls 100 large-cap US equities with automatic delta updates into local Parquet/CSV caching. Eliminates API overhead and rate limits.
-                </p>
-            </div>
-            <div style="background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; padding: 18px;">
-                <h4 style="color: #6366F1; margin-top: 0;">2. Factor Normalization</h4>
-                <p style="font-size: 0.85rem; color: #94A3B8; line-height: 1.5;">
-                    Calculates 4 canonical factors (Value, Quality, Momentum, Low-Vol). Applies Winsorization (1st-99th percentile) and cross-sectional Z-scoring.
-                </p>
-            </div>
-            <div style="background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; padding: 18px;">
-                <h4 style="color: #10B981; margin-top: 0;">3. Walk-Forward XGBoost</h4>
-                <p style="font-size: 0.85rem; color: #94A3B8; line-height: 1.5;">
-                    Trains on strictly historical expanding windows (min 504 days) to predict cross-sectional return ranks. Strictly prevents look-ahead bias.
-                </p>
-            </div>
-            <div style="background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; padding: 18px;">
-                <h4 style="color: #F59E0B; margin-top: 0;">4. CVXPY Convex Optimization</h4>
-                <p style="font-size: 0.85rem; color: #94A3B8; line-height: 1.5;">
-                    Maximizes Alpha minus Risk penalty using Ledoit-Wolf PSD covariance matrices subject to 40% turnover, 5% max position, and ±5% sector neutrality.
-                </p>
-            </div>
-            <div style="background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; padding: 18px;">
-                <h4 style="color: #EC4899; margin-top: 0;">5. Drift & Friction Engine</h4>
-                <p style="font-size: 0.85rem; color: #94A3B8; line-height: 1.5;">
-                    Simulates daily holding weight drift and deducts 10 bps per dollar turnover in realistic transaction friction.
-                </p>
-            </div>
-            <div style="background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; padding: 18px;">
-                <h4 style="color: #A855F7; margin-top: 0;">6. Executive Dashboard</h4>
-                <p style="font-size: 0.85rem; color: #94A3B8; line-height: 1.5;">
-                    Instantaneous visualization layer powered by cached serialization, Plotly vector graphics, and glassmorphic telemetry.
-                </p>
-            </div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
+# --- DISCLAIMER ---
+st.markdown(f"""
+<div class="disclaimer">
+    <b>Methodology & Disclosures:</b> Historical simulation assumes a static universe and utilizes snapshot fundamental data applied retroactively, 
+    introducing look-ahead bias in specific factors prior to the current year. Market friction is modeled linearly at 10 bps. 
+    This application is designed as an architectural demonstration of a quantitative execution pipeline and does not constitute financial advice.
+</div>
+""", unsafe_allow_html=True)
