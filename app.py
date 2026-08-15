@@ -452,7 +452,7 @@ with tab_perf:
         st.markdown('<div class="panel-header">Monthly Active Returns (Alpha)</div>', unsafe_allow_html=True)
         
         # Calculate monthly active returns
-        monthly_active = active_returns.resample('M').apply(lambda x: (1 + x).prod() - 1)
+        monthly_active = active_returns.resample('ME').apply(lambda x: (1 + x).prod() - 1)
         colors = [pass_color if val > 0 else fail_color for val in monthly_active.values]
         
         fig_monthly = go.Figure(go.Bar(
