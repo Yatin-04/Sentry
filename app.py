@@ -13,35 +13,20 @@ st.set_page_config(
 )
 
 # --- SIDEBAR CONTROLS ---
-with st.sidebar:
-    st.markdown("### Settings")
-    theme = st.radio("Interface Theme", ["Light Mode", "Dark Mode"], index=0)
+# Removed theme toggle; forcing Dark Mode default.
 
 # --- DYNAMIC CSS ---
-if theme == "Light Mode":
-    bg_color = "#F8FAFC"
-    text_color = "#0F172A"
-    panel_bg = "#FFFFFF"
-    border_color = "#E2E8F0"
-    text_muted = "#64748B"
-    pass_color = "#059669"
-    fail_color = "#DC2626"
-    fallback_color = "#D97706"
-    chart_line = "#2563EB"
-    tab_bg = "#F1F5F9"
-    tab_selected_bg = "#E2E8F0"
-else:
-    bg_color = "#0F172A"
-    text_color = "#F8FAFC"
-    panel_bg = "#1E293B"
-    border_color = "#334155"
-    text_muted = "#94A3B8"
-    pass_color = "#34D399"
-    fail_color = "#F87171"
-    fallback_color = "#FBBF24"
-    chart_line = "#60A5FA"
-    tab_bg = "#0F172A"
-    tab_selected_bg = "#334155"
+bg_color = "#0F172A"
+text_color = "#F8FAFC"
+panel_bg = "#1E293B"
+border_color = "#334155"
+text_muted = "#94A3B8"
+pass_color = "#34D399"
+fail_color = "#F87171"
+fallback_color = "#FBBF24"
+chart_line = "#60A5FA"
+tab_bg = "#0F172A"
+tab_selected_bg = "#334155"
 
 custom_css = f"""
 <style>
